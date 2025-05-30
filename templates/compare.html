@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+
+{% block title %}Team Comparison - Deadman All Stars 2{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="text-center">
+                <h1 class="display-5 mb-3">
+                    <i class="fas fa-balance-scale text-warning"></i>
+                    Team Comparison
+                </h1>
+                <p class="lead">Compare team performance across all skills</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Team Selection -->
+    <div class="row mb-4">
+        <div class="col-lg-6 mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Select Teams to Compare</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="team1Select" class="form-label">Team 1</label>
+                            <select class="form-select" id="team1Select" onchange="updateComparison()">
+                                <option value="">Select Team 1</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="team2Select" class="form-label">Team 2</label>
+                            <select class="form-select" id="team2Select" onchange="updateComparison()">
+                                <option value="">Select Team 2</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="compareTeams()">
+                        <i class="fas fa-chart-bar"></i> Compare Teams
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6 mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Comparison Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div id="comparisonSummary">
+                        <p class="text-center text-muted">Select two teams to see comparison summary</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Comparison Results -->
+    <div id="comparisonResults" style="display: none;">
+        <!-- Side by Side Comparison -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">
+                            <i class="fas fa-table"></i> Detailed Skill Comparison
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div id="skillComparisonTable">
+                            <!-- Table will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts -->
+        <div class="row mb-4">
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-radar"></i> Skill Comparison Chart
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="comparisonChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar"></i> Win/Loss Breakdown
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="winLossChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Team Overview Chart -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-chart-line"></i> All Teams Overview
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div id="teamOverviewChart" style="height: 500px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let comparisonData = null;
+    
+    function loadPageData() {
+        if (!currentData || !currentData.teams) {
+            setTimeout(loadPageData, 1000);
+            return;
+        }
+        
+        populateTeamSelects();
+        loadTeamOverview();
+    }
+    
+    function populateTeamSelects() {
+        const teams = currentData.teams || {};
+        const team1Select = document.getElementById('team1Select');
+        const team2Select = document.getElementById('team2Select');
+        
+        // Clear existing options (except first)
+        team1Select.innerHTML = '<option value="">Select Team 1</option>';
+        team2Select.innerHTML = '<option value="">Select Team 2</option>';
+        
+        Object.keys(teams).forEach(teamCode => {
+            const team = teams[teamCode];
+            const option1 = new Option(team.name, teamCode);
+            const option2 = new Option(team.name, teamCode);
+            team1Select.add(option1);
+            team2Select.add(option2);
+        });
+    }
+    
+    function updateComparison() {
+        const team1 = document.getElementById('team1Select').value;
+        const team2 = document.getElementById('team2Select').value;
+        
+        if (team1 && team2 && team1 !== team2) {
+            compareTeams();
+        }
+    }
+    
+    function compareTeams() {
+        const team1 = document.getElementById('team1Select').value;
+        const team2 = document.getElementById('team2Select').value;
+        
+        if (!team1 || !team2) {
+            alert('Please select both teams to compare');
+            return;
+        }
+        
+        if (team1 === team2) {
+            alert('Please select different teams to compare');
+            return;
+        }
+        
+        // Fetch comparison data
+        fetch(`/api/comparison?team1=${team1}&team2=${team2}`)
+            .then(response => response.json())
+            .then(data => {
+                comparisonData = data;
+                displayComparison();
+            })
+            .catch(error => {
+                console.error('Error fetching comparison data:', error);
+                alert('Error loading comparison data');
+            });
+    }
+    
+    function displayComparison() {
+        if (!comparisonData) return;
+        
+        displayComparisonSummary();
+        displaySkillComparisonTable();
+        displayComparisonCharts();
+        
+        document.getElementById('comparisonResults').style.display = 'block';
+    }
+    
+    function displayComparisonSummary() {
+        const summary = comparisonData.summary;
+        const team1 = comparisonData.team1;
+        const team2 = comparisonData.team2;
+        
+        let html = `
+            <div class="row text-center">
+                <div class="col-4">
+                    <h5 style="color: ${getTeamColor(team1.code)}">${team1.name}</h5>
+                    <h3 class="text-success">${summary.team1_wins}</h3>
+                    <small>Skills Won</small>
+                </div>
+                <div class="col-4">
+                    <h5>Ties</h5>
+                    <h3 class="text-warning">${summary.ties}</h3>
+                    <small>Equal Skills</small>
+                </div>
+                <div class="col-4">
+                    <h5 style="color: ${getTeamColor(team2.code)}">${team2.name}</h5>
+                    <h3 class="text-success">${summary.team2_wins}</h3>
+                    <small>Skills Won</small>
+                </div>
+            </div>
+            <hr>
+            <div class="text-center">
+                <h5>Overall Winner: 
+                    <span class="text-warning">
+                        ${summary.overall_winner === 'tie' ? 'Tie' : 
+                          summary.overall_winner === team1.code ? team1.name : team2.name}
+                    </span>
+                </h5>
+            </div>
+        `;
+        
+        document.getElementById('comparisonSummary').innerHTML = html;
+    }
+    
+    function displaySkillComparisonTable() {
+        const skills = comparisonData.skill_comparison;
+        const team1 = comparisonData.team1;
+        const team2 = comparisonData.team2;
+        
+        let html = '<div class="table-responsive"><table class="table table-dark table-striped">';
+        html += `
+            <thead>
+                <tr>
+                    <th>Skill</th>
+                    <th>${team1.name} (Avg)</th>
+                    <th>${team2.name} (Avg)</th>
+                    <th>Winner</th>
+                    <th>Difference</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        Object.keys(skills).forEach(skill => {
+            const skillData = skills[skill];
+            const winner = skillData.winner;
+            let winnerText = 'Tie';
+            let winnerColor = '#FFD700';
+            
+            if (winner === team1.code) {
+                winnerText = team1.name;
+                winnerColor = getTeamColor(team1.code);
+            } else if (winner === team2.code) {
+                winnerText = team2.name;
+                winnerColor = getTeamColor(team2.code);
+            }
+            
+            html += `
+                <tr>
+                    <td class="text-capitalize"><strong>${skill}</strong></td>
+                    <td>${formatXP(skillData.team1_avg)}</td>
+                    <td>${formatXP(skillData.team2_avg)}</td>
+                    <td><span style="color: ${winnerColor}">${winnerText}</span></td>
+                    <td>${formatXP(skillData.difference)}</td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table></div>';
+        document.getElementById('skillComparisonTable').innerHTML = html;
+    }
+    
+    function displayComparisonCharts() {
+        displayRadarChart();
+        displayWinLossChart();
+    }
+    
+    function displayRadarChart() {
+        const allSkills = Object.keys(comparisonData.skill_comparison);
+        // Exclude overall from the radar chart
+        const skills = allSkills.filter(skill => skill !== 'overall');
+        const team1 = comparisonData.team1;
+        const team2 = comparisonData.team2;
+        
+        const team1Values = skills.map(skill => comparisonData.skill_comparison[skill].team1_avg);
+        const team2Values = skills.map(skill => comparisonData.skill_comparison[skill].team2_avg);
+        
+        const data = [
+            {
+                type: 'scatterpolar',
+                r: team1Values,
+                theta: skills,
+                fill: 'toself',
+                name: team1.name,
+                line: { color: getTeamColor(team1.code) }
+            },
+            {
+                type: 'scatterpolar',
+                r: team2Values,
+                theta: skills,
+                fill: 'toself',
+                name: team2.name,
+                line: { color: getTeamColor(team2.code) }
+            }
+        ];
+        
+        const layout = {
+            polar: {
+                radialaxis: {
+                    visible: true,
+                    color: '#ffffff'
+                },
+                angularaxis: {
+                    color: '#ffffff'
+                }
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#ffffff' },
+            legend: {
+                font: { color: '#ffffff' }
+            }
+        };
+        
+        Plotly.newPlot('comparisonChart', data, layout, {responsive: true});
+    }
+    
+    function displayWinLossChart() {
+        const summary = comparisonData.summary;
+        const team1 = comparisonData.team1;
+        const team2 = comparisonData.team2;
+        
+        const data = [{
+            x: [team1.name, 'Ties', team2.name],
+            y: [summary.team1_wins, summary.ties, summary.team2_wins],
+            type: 'bar',
+            marker: {
+                color: [getTeamColor(team1.code), '#FFD700', getTeamColor(team2.code)]
+            }
+        }];
+        
+        const layout = {
+            title: {
+                text: 'Skills Won by Each Team',
+                font: { color: '#ffffff' }
+            },
+            xaxis: { 
+                title: 'Teams',
+                color: '#ffffff'
+            },
+            yaxis: { 
+                title: 'Skills Won',
+                color: '#ffffff'
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#ffffff' }
+        };
+        
+        Plotly.newPlot('winLossChart', data, layout, {responsive: true});
+    }
+    
+    function loadTeamOverview() {
+        const teams = currentData.teams || {};
+        const teamCodes = Object.keys(teams);
+        
+        if (teamCodes.length === 0) {
+            document.getElementById('teamOverviewChart').innerHTML = '<p class="text-center">No team data available</p>';
+            return;
+        }
+        
+        // Create a grouped bar chart showing overall XP for each team
+        const teamNames = [];
+        const overallXP = [];
+        const colors = [];
+        
+        teamCodes.forEach(teamCode => {
+            const team = teams[teamCode];
+            teamNames.push(team.name);
+            overallXP.push(team.averages?.overall?.xp || 0);
+            colors.push(getTeamColor(teamCode));
+        });
+        
+        const data = [{
+            x: teamNames,
+            y: overallXP,
+            type: 'bar',
+            marker: {
+                color: colors,
+                line: {
+                    color: '#FFD700',
+                    width: 1
+                }
+            },
+            text: overallXP.map(xp => formatXP(xp)),
+            textposition: 'auto'
+        }];
+        
+        const layout = {
+            title: {
+                text: 'Team Overall XP Comparison',
+                font: { color: '#ffffff' }
+            },
+            xaxis: { 
+                title: 'Teams',
+                color: '#ffffff',
+                tickangle: -45
+            },
+            yaxis: { 
+                title: 'Average Overall XP',
+                color: '#ffffff'
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#ffffff' },
+            margin: { t: 50, b: 80, l: 80, r: 50 }
+        };
+        
+        Plotly.newPlot('teamOverviewChart', data, layout, {responsive: true});
+    }
+</script>
+{% endblock %} 

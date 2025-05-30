@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+
+{% block title %}Teams Overview - Deadman All Stars 2{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card-body h5, .card-body h6, .card-body small, .card-body .text-capitalize {
+        color: #ffffff !important;
+    }
+    
+    .team-members .badge {
+        background-color: rgba(255, 255, 255, 0.2) !important;
+        color: #ffffff !important;
+    }
+    
+    .modal-content {
+        background: rgba(13, 13, 13, 0.95) !important;
+        color: #ffffff !important;
+    }
+    
+    .modal-content h4, .modal-content h5, .modal-content small {
+        color: #ffffff !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="text-center">
+                <h1 class="display-5 mb-3">
+                    <i class="fas fa-users text-warning"></i>
+                    Teams Overview
+                </h1>
+                <p class="lead">Detailed statistics for each competing team</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Team Filter -->
+    <div class="row mb-4">
+        <div class="col-lg-6 mx-auto">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <label for="teamFilter" class="form-label">Filter by Team</label>
+                            <select class="form-select" id="teamFilter" onchange="filterTeams()">
+                                <option value="">All Teams</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button class="btn btn-primary" onclick="showAllTeams()">
+                                <i class="fas fa-eye"></i> Show All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Teams Grid -->
+    <div class="row" id="teamsContainer">
+        <div class="loading text-center">
+            <div class="spinner-border" role="status"></div>
+            <p class="mt-2">Loading teams...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Team Detail Modal -->
+<div class="modal fade" id="teamModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="background: rgba(13, 13, 13, 0.95); border: 1px solid #B8860B;">
+            <div class="modal-header" style="border-bottom: 1px solid #B8860B;">
+                <h5 class="modal-title" id="teamModalTitle">Team Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="teamModalContent">
+                    <!-- Content will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function loadPageData() {
+        if (!currentData || !currentData.teams) {
+            setTimeout(loadPageData, 1000);
+            return;
+        }
+        
+        populateTeamFilter();
+        loadTeams();
+    }
+    
+    function populateTeamFilter() {
+        const teams = currentData.teams || {};
+        const teamFilter = document.getElementById('teamFilter');
+        
+        // Clear existing options (except first)
+        teamFilter.innerHTML = '<option value="">All Teams</option>';
+        
+        Object.keys(teams).forEach(teamCode => {
+            const team = teams[teamCode];
+            const option = new Option(team.name, teamCode);
+            teamFilter.add(option);
+        });
+    }
+    
+    function loadTeams() {
+        const teams = currentData.teams || {};
+        const container = document.getElementById('teamsContainer');
+        
+        if (Object.keys(teams).length === 0) {
+            container.innerHTML = '<p class="text-center">No team data available</p>';
+            return;
+        }
+        
+        let html = '';
+        
+        Object.keys(teams).forEach(teamCode => {
+            const team = teams[teamCode];
+            const overallStats = team.totals.overall || {};
+            const overallAvg = team.averages.overall || {};
+            
+            html += `
+                <div class="col-lg-6 col-xl-4 mb-4 team-card" data-team="${teamCode}">
+                    <div class="card team-${teamCode.toLowerCase()}" style="height: 100%;">
+                        <div class="card-header text-center">
+                            <h4 style="color: ${getTeamColor(teamCode)}">${team.name}</h4>
+                            <small>Team ${teamCode}</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center mb-3">
+                                <div class="col-4">
+                                    <h5>${overallStats.players || 0}</h5>
+                                    <small>Players</small>
+                                </div>
+                                <div class="col-4">
+                                    <h5>${overallAvg.level || 0}</h5>
+                                    <small>Avg Total</small>
+                                </div>
+                                <div class="col-4">
+                                    <h5>${formatNumber(overallStats.xp || 0)}</h5>
+                                    <small>Total XP</small>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6>Top Skills:</h6>
+                                <div class="row">
+                                    ${getTopSkills(team).map(skill => `
+                                        <div class="col-6 mb-2">
+                                            <small class="text-capitalize">${skill.name}: ${skill.level}</small>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6>Team Members:</h6>
+                                <div class="team-members">
+                                    ${getTeamMembers(team, teamCode).map(player => `
+                                        <span class="badge bg-secondary me-1 mb-1">${player}</span>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer text-center">
+                            <button class="btn btn-primary btn-sm" onclick="showTeamDetails('${teamCode}')">
+                                <i class="fas fa-info-circle"></i> View Details
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+    }
+    
+    function getTopSkills(team) {
+        const skills = [];
+        Object.keys(team.averages).forEach(skill => {
+            if (skill !== 'overall' && team.averages[skill]) {
+                skills.push({
+                    name: skill,
+                    level: team.averages[skill].level || 0,
+                    xp: team.averages[skill].xp || 0
+                });
+            }
+        });
+        
+        return skills.sort((a, b) => b.level - a.level).slice(0, 4);
+    }
+    
+    function getTeamMembers(team, teamCode) {
+        // Extract unique player names from the team data
+        const players = new Set();
+        
+        // Get players from overall leaderboard
+        const overallLeaderboard = currentData.leaderboards?.overall || [];
+        overallLeaderboard.forEach(player => {
+            if (player.team === teamCode) {
+                players.add(player.name);
+            }
+        });
+        
+        return Array.from(players);
+    }
+    
+    function filterTeams() {
+        const selectedTeam = document.getElementById('teamFilter').value;
+        const teamCards = document.querySelectorAll('.team-card');
+        
+        teamCards.forEach(card => {
+            if (!selectedTeam || card.dataset.team === selectedTeam) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+    
+    function showAllTeams() {
+        document.getElementById('teamFilter').value = '';
+        filterTeams();
+    }
+    
+    function showTeamDetails(teamCode) {
+        const team = currentData.teams[teamCode];
+        if (!team) return;
+        
+        const modalTitle = document.getElementById('teamModalTitle');
+        const modalContent = document.getElementById('teamModalContent');
+        
+        modalTitle.innerHTML = `<span style="color: ${getTeamColor(teamCode)}">${team.name}</span> - Detailed Statistics`;
+        
+        let html = `
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h5>Team Overview</h5>
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <h4>${team.totals.overall?.players || 0}</h4>
+                            <small>Total Players</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4>${team.averages.overall?.level || 0}</h4>
+                            <small>Average Total</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4>${formatXP(team.totals.overall?.xp || 0)}</h4>
+                            <small>Total XP</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <h4>${formatXP(team.averages.overall?.xp || 0)}</h4>
+                            <small>Average XP</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h5>Skill Statistics</h5>
+
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Skill</th>
+                                    <th>Avg Level</th>
+                                    <th>Avg XP</th>
+                                    <th>Total XP</th>
+                                    <th>Best Player</th>
+                                    <th>Team Rank</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+        
+        const skills = ['overall', 'attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic', 'cooking', 'woodcutting', 'fletching', 'fishing', 'firemaking', 'crafting', 'smithing', 'mining', 'herblore', 'agility', 'thieving', 'slayer', 'farming', 'runecraft', 'hunter', 'construction'];
+        
+        skills.forEach(skill => {
+            const avg = team.averages[skill] || {};
+            const total = team.totals[skill] || {};
+            const best = team.best_players[skill];
+            const rank = team.rankings[skill] || '-';
+            
+            html += `
+                <tr>
+                    <td class="text-capitalize"><strong>${skill}</strong></td>
+                    <td>${avg.level || 0}</td>
+                    <td>${formatXP(avg.xp || 0)}</td>
+                    <td>${formatXP(total.xp || 0)}</td>
+                    <td>${best ? `${best.name} (${best.level})` : '-'}</td>
+                    <td><span class="badge bg-warning">#${rank}</span></td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-12">
+                    <h5>Team Members Performance</h5>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Player</th>
+                                    <th>Overall Level</th>
+                                    <th>Overall XP</th>
+                                    <th>Overall Rank</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+        
+        // Get team members from overall leaderboard
+        const overallLeaderboard = currentData.leaderboards?.overall || [];
+        const teamMembers = overallLeaderboard.filter(player => player.team === teamCode);
+        
+        teamMembers.forEach(player => {
+            html += `
+                <tr>
+                    <td><strong>${player.name}</strong></td>
+                    <td>${player.level}</td>
+                    <td>${formatXP(player.xp)}</td>
+                    <td>#${player.rank}</td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        modalContent.innerHTML = html;
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('teamModal'));
+        modal.show();
+    }
+</script>
+{% endblock %} 

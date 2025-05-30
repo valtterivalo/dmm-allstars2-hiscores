@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Deadman All Stars 2{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="text-center">
+                <h1 class="display-4 mb-3">
+                    <i class="fas fa-trophy text-warning"></i>
+                    Deadman All Stars 2
+                </h1>
+                <p class="lead">Live tracking of team performance and individual achievements</p>
+            </div>
+        </div>
+    </div>
+    
+
+    
+    <!-- Team Standings -->
+    <div class="row mb-4">
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-trophy"></i> Team Standings (Overall XP)
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div id="teamStandings">
+                        <div class="loading">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Loading team standings...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-chart-pie"></i> Team Distribution
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div id="teamChart" style="height: 300px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Skill Leaders -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-crown"></i> Skill Leaders
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="skillLeaders">
+                        <div class="loading">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Loading skill leaders...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity / Top Performers -->
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-fire"></i> Top Overall Performers
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div id="topPerformers">
+                        <div class="loading">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Loading top performers...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-chart-bar"></i> Team Performance Chart
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div id="performanceChart" style="height: 300px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function loadPageData() {
+        if (!currentData || !currentData.overall_stats) {
+            setTimeout(loadPageData, 1000);
+            return;
+        }
+        
+        loadTeamStandings();
+        loadSkillLeaders();
+        loadTopPerformers();
+        loadCharts();
+    }
+    
+
+    
+    function loadTeamStandings() {
+        const standings = currentData.overall_stats.team_standings || [];
+        const container = document.getElementById('teamStandings');
+        
+        if (standings.length === 0) {
+            container.innerHTML = '<p class="text-center">No team data available</p>';
+            return;
+        }
+        
+        let html = '<div class="table-responsive"><table class="table table-dark table-striped">';
+        html += '<thead><tr><th>Rank</th><th>Team</th><th>Total XP</th><th>Avg XP</th><th>Players</th></tr></thead><tbody>';
+        
+        standings.forEach(team => {
+            const teamClass = `team-${team.team.toLowerCase()}`;
+            html += `
+                <tr class="${teamClass}">
+                    <td><strong>#${team.rank}</strong></td>
+                    <td>
+                        <span style="color: ${getTeamColor(team.team)}">
+                            <strong>${team.name}</strong>
+                        </span>
+                    </td>
+                    <td>${formatXP(team.total_xp)}</td>
+                    <td>${formatXP(team.avg_xp)}</td>
+                    <td>${team.players}</td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }
+    
+    function loadSkillLeaders() {
+        const leaders = currentData.overall_stats.skill_leaders || {};
+        const container = document.getElementById('skillLeaders');
+        
+        if (Object.keys(leaders).length === 0) {
+            container.innerHTML = '<p class="text-center">No skill leader data available</p>';
+            return;
+        }
+        
+        let html = '';
+        const skills = ['overall', 'attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic'];
+        
+        skills.forEach(skill => {
+            if (leaders[skill]) {
+                const leader = leaders[skill];
+                html += `
+                    <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
+                        <div class="card team-${leader.team.toLowerCase()}">
+                            <div class="card-body text-center">
+                                <h6 class="card-title text-capitalize">${skill}</h6>
+                                <p class="card-text">
+                                    <strong style="color: ${getTeamColor(leader.team)}">${leader.name}</strong><br>
+                                    Level ${leader.level}<br>
+                                    ${formatXP(leader.xp)}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        
+        container.innerHTML = html;
+    }
+    
+    function loadTopPerformers() {
+        const leaderboard = currentData.leaderboards?.overall || [];
+        const container = document.getElementById('topPerformers');
+        
+        if (leaderboard.length === 0) {
+            container.innerHTML = '<p class="text-center">No performer data available</p>';
+            return;
+        }
+        
+        let html = '<div class="table-responsive"><table class="table table-dark table-sm">';
+        html += '<thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>Level</th><th>XP</th></tr></thead><tbody>';
+        
+        leaderboard.slice(0, 10).forEach((player, index) => {
+            html += `
+                <tr>
+                    <td><strong>#${index + 1}</strong></td>
+                    <td>${player.name}</td>
+                    <td><span style="color: ${getTeamColor(player.team)}">${player.team}</span></td>
+                    <td>${player.level}</td>
+                    <td>${formatXP(player.xp)}</td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }
+    
+    function loadCharts() {
+        loadTeamChart();
+        loadPerformanceChart();
+    }
+    
+    function loadTeamChart() {
+        const standings = currentData.overall_stats.team_standings || [];
+        
+        if (standings.length === 0) return;
+        
+        const data = [{
+            values: standings.map(team => team.total_xp),
+            labels: standings.map(team => team.name),
+            type: 'pie',
+            marker: {
+                colors: standings.map(team => getTeamColor(team.team))
+            },
+            textinfo: 'label+percent',
+            textposition: 'outside'
+        }];
+        
+        const layout = {
+            title: {
+                text: 'Team XP Distribution',
+                font: { color: '#ffffff' }
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#ffffff' },
+            showlegend: false
+        };
+        
+        Plotly.newPlot('teamChart', data, layout, {responsive: true});
+    }
+    
+    function loadPerformanceChart() {
+        const teams = currentData.teams || {};
+        const teamNames = Object.keys(teams);
+        
+        if (teamNames.length === 0) return;
+        
+        const skills = ['attack', 'defence', 'strength', 'magic', 'ranged'];
+        const traces = [];
+        
+        teamNames.forEach(teamCode => {
+            const team = teams[teamCode];
+            const yValues = skills.map(skill => {
+                const skillData = team.averages && team.averages[skill];
+                return skillData ? skillData.xp || 0 : 0;
+            });
+            
+            // Only add trace if there's actual data
+            if (yValues.some(val => val > 0)) {
+                traces.push({
+                    x: skills,
+                    y: yValues,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: team.name,
+                    line: { color: getTeamColor(teamCode), width: 3 },
+                    marker: { color: getTeamColor(teamCode), size: 8 }
+                });
+            }
+        });
+        
+        if (traces.length === 0) {
+            document.getElementById('performanceChart').innerHTML = '<p class="text-center">No performance data available yet</p>';
+            return;
+        }
+        
+        const layout = {
+            title: {
+                text: 'Team Average XP by Combat Skills',
+                font: { color: '#ffffff' }
+            },
+            xaxis: { 
+                title: 'Skills',
+                color: '#ffffff',
+                tickangle: -45
+            },
+            yaxis: { 
+                title: 'Average XP',
+                color: '#ffffff'
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#ffffff' },
+            legend: {
+                font: { color: '#ffffff' }
+            },
+            margin: { t: 50, b: 80, l: 80, r: 50 }
+        };
+        
+        Plotly.newPlot('performanceChart', traces, layout, {responsive: true});
+    }
+</script>
+{% endblock %} 

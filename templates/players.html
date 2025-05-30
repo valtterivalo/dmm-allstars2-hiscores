@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+
+{% block title %}Player Comparison - Deadman All Stars 2{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="text-center">
+                <h1 class="display-4 mb-3">
+                    <i class="fas fa-user-friends text-warning"></i>
+                    Player Comparison
+                </h1>
+                <p class="lead">Compare individual players across all skills</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Player Selection -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-search"></i> Select Players to Compare
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="player1Select" class="form-label">Player 1</label>
+                            <select class="form-select" id="player1Select">
+                                <option value="">Select a player...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="player2Select" class="form-label">Player 2</label>
+                            <select class="form-select" id="player2Select">
+                                <option value="">Select a player...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="player3Select" class="form-label">Player 3 (Optional)</label>
+                            <select class="form-select" id="player3Select">
+                                <option value="">Select a player...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <button class="btn btn-warning btn-lg" onclick="compareSelectedPlayers()">
+                            <i class="fas fa-chart-bar"></i> Compare Players
+                        </button>
+                        <button class="btn btn-secondary btn-lg ms-2" onclick="clearComparison()">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Comparison Results -->
+    <div id="comparisonResults" style="display: none;">
+        <!-- Player Overview Cards -->
+        <div class="row mb-4" id="playerOverview">
+        </div>
+        
+        <!-- Skill Comparison Chart -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">
+                            <i class="fas fa-chart-radar"></i> Skill Comparison (XP)
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div id="skillComparisonChart" style="height: 500px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Detailed Comparison Table -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">
+                            <i class="fas fa-table"></i> Detailed Skill Comparison
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-striped" id="detailedComparisonTable">
+                                <thead>
+                                    <tr>
+                                        <th>Skill</th>
+                                        <th id="player1Header">Player 1</th>
+                                        <th id="player2Header">Player 2</th>
+                                        <th id="player3Header" style="display: none;">Player 3</th>
+                                        <th>Leader</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="comparisonTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Historical Progress Charts -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">
+                            <i class="fas fa-chart-line"></i> Overall XP Progress Over Time
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div id="progressChart" style="height: 400px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let allPlayers = [];
+    let comparisonData = {};
+    
+    function loadPageData() {
+        if (!currentData) {
+            setTimeout(loadPageData, 1000);
+            return;
+        }
+        
+        loadPlayerList();
+    }
+    
+    function loadPlayerList() {
+        fetch('/api/players')
+            .then(response => response.json())
+            .then(players => {
+                allPlayers = players.sort();
+                populatePlayerSelects();
+            })
+            .catch(error => {
+                console.error('Error loading players:', error);
+            });
+    }
+    
+    function populatePlayerSelects() {
+        const selects = ['player1Select', 'player2Select', 'player3Select'];
+        
+        selects.forEach(selectId => {
+            const select = document.getElementById(selectId);
+            select.innerHTML = '<option value="">Select a player...</option>';
+            
+            allPlayers.forEach(player => {
+                const option = document.createElement('option');
+                option.value = player;
+                option.textContent = player;
+                select.appendChild(option);
+            });
+        });
+    }
+    
+    function compareSelectedPlayers() {
+        const player1 = document.getElementById('player1Select').value;
+        const player2 = document.getElementById('player2Select').value;
+        const player3 = document.getElementById('player3Select').value;
+        
+        if (!player1 || !player2) {
+            alert('Please select at least 2 players to compare');
+            return;
+        }
+        
+        const players = [player1, player2];
+        if (player3) players.push(player3);
+        
+        // Build query string
+        const queryParams = players.map(p => `players=${encodeURIComponent(p)}`).join('&');
+        
+        fetch(`/api/compare/players?${queryParams}`)
+            .then(response => response.json())
+            .then(data => {
+                comparisonData = data;
+                displayComparison(players);
+                loadHistoricalData(players);
+            })
+            .catch(error => {
+                console.error('Error comparing players:', error);
+                alert('Error loading comparison data');
+            });
+    }
+    
+    function displayComparison(players) {
+        document.getElementById('comparisonResults').style.display = 'block';
+        
+        displayPlayerOverview(players);
+        displaySkillChart(players);
+        displayDetailedTable(players);
+    }
+    
+    function displayPlayerOverview(players) {
+        const container = document.getElementById('playerOverview');
+        let html = '';
+        
+        players.forEach((player, index) => {
+            const playerData = comparisonData[player];
+            const overallData = playerData?.overall || {};
+            const team = overallData.team || 'Unknown';
+            
+            html += `
+                <div class="col-md-${players.length === 2 ? '6' : '4'} mb-3">
+                    <div class="card team-${team.toLowerCase()}">
+                        <div class="card-body text-center">
+                            <h5 class="card-title" style="color: ${getTeamColor(team)}">${player}</h5>
+                            <p class="card-text">
+                                <strong>Team:</strong> ${team}<br>
+                                <strong>Overall Level:</strong> ${overallData.level || 'N/A'}<br>
+                                <strong>Overall XP:</strong> ${formatXP(overallData.xp || 0)}<br>
+                                <strong>Overall Rank:</strong> #${overallData.rank || 'N/A'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+    }
+    
+    function displaySkillChart(players) {
+        const skills = ['attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic', 'cooking', 'woodcutting', 'fletching', 'fishing', 'firemaking', 'crafting', 'smithing', 'mining', 'herblore', 'agility', 'thieving', 'slayer', 'farming', 'runecraft', 'hunter', 'construction'];
+        
+        const traces = [];
+        const colors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'];
+        
+        players.forEach((player, index) => {
+            const playerData = comparisonData[player];
+            const xpValues = skills.map(skill => playerData[skill]?.xp || 0);
+            
+            traces.push({
+                type: 'scatterpolar',
+                r: xpValues,
+                theta: skills,
+                fill: 'toself',
+                name: player,
+                line: { color: colors[index] },
+                fillcolor: colors[index] + '40'
+            });
+        });
+        
+        const layout = {
+            polar: {
+                radialaxis: {
+                    visible: true,
+                    range: [0, Math.max(...players.flatMap(p => 
+                        skills.map(s => comparisonData[p][s]?.xp || 0)
+                    ))]
+                }
+            },
+            title: {
+                text: 'Player Skill Comparison (XP)',
+                font: { color: '#ffffff' }
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#ffffff' },
+            legend: {
+                font: { color: '#ffffff' }
+            }
+        };
+        
+        Plotly.newPlot('skillComparisonChart', traces, layout, {responsive: true});
+    }
+    
+    function displayDetailedTable(players) {
+        // Update headers
+        document.getElementById('player1Header').textContent = players[0];
+        document.getElementById('player2Header').textContent = players[1];
+        
+        if (players.length > 2) {
+            document.getElementById('player3Header').textContent = players[2];
+            document.getElementById('player3Header').style.display = 'table-cell';
+        } else {
+            document.getElementById('player3Header').style.display = 'none';
+        }
+        
+        const skills = ['overall', 'attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic', 'cooking', 'woodcutting', 'fletching', 'fishing', 'firemaking', 'crafting', 'smithing', 'mining', 'herblore', 'agility', 'thieving', 'slayer', 'farming', 'runecraft', 'hunter', 'construction'];
+        
+        const tbody = document.getElementById('comparisonTableBody');
+        let html = '';
+        
+        skills.forEach(skill => {
+            const skillData = players.map(player => comparisonData[player][skill] || {});
+            const maxXP = Math.max(...skillData.map(d => d.xp || 0));
+            const leader = players.find(player => (comparisonData[player][skill]?.xp || 0) === maxXP);
+            
+            html += `
+                <tr>
+                    <td class="text-capitalize"><strong>${skill}</strong></td>
+            `;
+            
+            players.forEach((player, index) => {
+                const data = skillData[index];
+                const isLeader = (data.xp || 0) === maxXP && maxXP > 0;
+                const cellClass = isLeader ? 'table-success' : '';
+                
+                html += `
+                    <td class="${cellClass}">
+                        Level ${data.level || 0}<br>
+                        ${formatXP(data.xp || 0)}<br>
+                        <small>Rank #${data.rank || 'N/A'}</small>
+                    </td>
+                `;
+            });
+            
+            if (players.length === 2) {
+                html += '<td style="display: none;"></td>';
+            }
+            
+            html += `
+                    <td><strong style="color: ${getTeamColor(comparisonData[leader]?.[skill]?.team || '')}">${leader || 'Tie'}</strong></td>
+                </tr>
+            `;
+        });
+        
+        tbody.innerHTML = html;
+    }
+    
+    function loadHistoricalData(players) {
+        const promises = players.map(player => 
+            fetch(`/api/history/player/${encodeURIComponent(player)}?skill=overall`)
+                .then(response => response.json())
+        );
+        
+        Promise.all(promises)
+            .then(histories => {
+                displayProgressChart(players, histories);
+            })
+            .catch(error => {
+                console.error('Error loading historical data:', error);
+            });
+    }
+    
+    function displayProgressChart(players, histories) {
+        const traces = [];
+        const colors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'];
+        
+        players.forEach((player, index) => {
+            const history = histories[index];
+            
+            if (history && history.length > 0) {
+                traces.push({
+                    x: history.map(h => h.timestamp),
+                    y: history.map(h => h.xp),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: player,
+                    line: { color: colors[index] },
+                    marker: { color: colors[index] }
+                });
+            }
+        });
+        
+        const layout = {
+            title: {
+                text: 'Overall XP Progress Over Time',
+                font: { color: '#ffffff' }
+            },
+            xaxis: { 
+                title: 'Time',
+                color: '#ffffff'
+            },
+            yaxis: { 
+                title: 'Overall XP',
+                color: '#ffffff'
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { color: '#ffffff' },
+            legend: {
+                font: { color: '#ffffff' }
+            }
+        };
+        
+        Plotly.newPlot('progressChart', traces, layout, {responsive: true});
+    }
+    
+    function clearComparison() {
+        document.getElementById('player1Select').value = '';
+        document.getElementById('player2Select').value = '';
+        document.getElementById('player3Select').value = '';
+        document.getElementById('comparisonResults').style.display = 'none';
+        comparisonData = {};
+    }
+</script>
+{% endblock %} 
