@@ -82,27 +82,9 @@
         </div>
     </div>
     
-    <!-- Recent Activity / Top Performers -->
-    <div class="row">
-        <div class="col-lg-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h4 class="mb-0">
-                        <i class="fas fa-fire"></i> Top Overall Performers
-                    </h4>
-                </div>
-                <div class="card-body">
-                    <div id="topPerformers">
-                        <div class="loading">
-                            <div class="spinner-border" role="status"></div>
-                            <p class="mt-2">Loading top performers...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-lg-6 mb-4">
+    <!-- Team Performance Chart -->
+    <div class="row mb-4">
+        <div class="col-12">
             <div class="card">
                 <div class="card-header">
                     <h4 class="mb-0">
@@ -111,6 +93,27 @@
                 </div>
                 <div class="card-body">
                     <div id="performanceChart" style="height: 300px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Overall Player Performance -->
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-users"></i> Overall Player Performance
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div id="topPerformers">
+                        <div class="loading">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Loading player performance...</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -233,22 +236,28 @@
         // Update the header to show which skill is being used
         const headerElement = document.querySelector('#topPerformers').closest('.card').querySelector('.card-header h4');
         if (statsSkillUsed === 'overall') {
-            headerElement.innerHTML = '<i class="fas fa-fire"></i> Top Overall Performers';
+            headerElement.innerHTML = '<i class="fas fa-users"></i> Overall Player Performance';
         } else {
-            headerElement.innerHTML = `<i class="fas fa-fire"></i> Top ${statsSkillUsed.charAt(0).toUpperCase() + statsSkillUsed.slice(1)} Performers`;
+            headerElement.innerHTML = `<i class="fas fa-users"></i> ${statsSkillUsed.charAt(0).toUpperCase() + statsSkillUsed.slice(1)} Player Performance`;
         }
         
         if (leaderboard.length === 0) {
-            container.innerHTML = '<p class="text-center">No performer data available</p>';
+            container.innerHTML = '<p class="text-center">No player data available</p>';
             return;
         }
         
-        let html = '<div class="table-responsive"><table class="table table-dark table-sm">';
-        html += '<thead><tr><th>Rank</th><th>Player</th><th>Team</th><th>Level</th><th>XP</th></tr></thead><tbody>';
+        let html = '<div class="table-responsive" style="max-height: 400px; overflow-y: auto;"><table class="table table-dark table-sm">';
+        html += '<thead class="sticky-top"><tr><th>Rank</th><th>Player</th><th>Team</th><th>Level</th><th>XP</th></tr></thead><tbody>';
         
-        leaderboard.slice(0, 10).forEach((player, index) => {
+        leaderboard.forEach((player, index) => {
+            // Add visual distinction for top 3
+            let rowClass = '';
+            if (index === 0) rowClass = 'table-warning';
+            else if (index === 1) rowClass = 'table-secondary';
+            else if (index === 2) rowClass = 'table-info';
+            
             html += `
-                <tr>
+                <tr class="${rowClass}">
                     <td><strong>#${index + 1}</strong></td>
                     <td>${player.name}</td>
                     <td><span style="color: ${getTeamColor(player.team)}">${player.team}</span></td>
