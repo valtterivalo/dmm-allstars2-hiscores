@@ -17,7 +17,15 @@
         </div>
     </div>
     
-
+    <!-- Data Status Notification -->
+    <div class="row mb-3" id="dataStatusNotification" style="display: none;">
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle"></i>
+                <span id="dataStatusMessage"></span>
+            </div>
+        </div>
+    </div>
     
     <!-- Team Standings -->
     <div class="row mb-4">
@@ -118,17 +126,40 @@
             return;
         }
         
+        // Check if a fallback skill is being used
+        checkDataStatus();
+        
         loadTeamStandings();
         loadSkillLeaders();
         loadTopPerformers();
         loadCharts();
     }
     
-
+    function checkDataStatus() {
+        const overallStats = currentData.overall_stats;
+        const statsSkillUsed = overallStats.stats_skill_used;
+        
+        if (statsSkillUsed && statsSkillUsed !== 'overall') {
+            document.getElementById('dataStatusMessage').textContent = 
+                `Note: Using ${statsSkillUsed} skill data for overall statistics (overall skill data temporarily unavailable)`;
+            document.getElementById('dataStatusNotification').style.display = 'block';
+        } else {
+            document.getElementById('dataStatusNotification').style.display = 'none';
+        }
+    }
     
     function loadTeamStandings() {
         const standings = currentData.overall_stats.team_standings || [];
+        const statsSkillUsed = currentData.overall_stats.stats_skill_used || 'overall';
         const container = document.getElementById('teamStandings');
+        
+        // Update the header to show which skill is being used
+        const headerElement = document.querySelector('#teamStandings').closest('.card').querySelector('.card-header h4');
+        if (statsSkillUsed === 'overall') {
+            headerElement.innerHTML = '<i class="fas fa-trophy"></i> Team Standings (Overall XP)';
+        } else {
+            headerElement.innerHTML = `<i class="fas fa-trophy"></i> Team Standings (${statsSkillUsed.charAt(0).toUpperCase() + statsSkillUsed.slice(1)} XP)`;
+        }
         
         if (standings.length === 0) {
             container.innerHTML = '<p class="text-center">No team data available</p>';
@@ -195,8 +226,17 @@
     }
     
     function loadTopPerformers() {
-        const leaderboard = currentData.leaderboards?.overall || [];
+        const statsSkillUsed = currentData.overall_stats.stats_skill_used || 'overall';
+        const leaderboard = currentData.leaderboards?.[statsSkillUsed] || [];
         const container = document.getElementById('topPerformers');
+        
+        // Update the header to show which skill is being used
+        const headerElement = document.querySelector('#topPerformers').closest('.card').querySelector('.card-header h4');
+        if (statsSkillUsed === 'overall') {
+            headerElement.innerHTML = '<i class="fas fa-fire"></i> Top Overall Performers';
+        } else {
+            headerElement.innerHTML = `<i class="fas fa-fire"></i> Top ${statsSkillUsed.charAt(0).toUpperCase() + statsSkillUsed.slice(1)} Performers`;
+        }
         
         if (leaderboard.length === 0) {
             container.innerHTML = '<p class="text-center">No performer data available</p>';

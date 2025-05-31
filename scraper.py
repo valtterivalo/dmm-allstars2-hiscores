@@ -160,6 +160,8 @@ class DeadmanScraper:
     def scrape_all_data(self) -> Dict:
         """Scrape all skills data for all competitors using skill table approach with correct URLs"""
         all_data = {}
+        successful_skills = 0
+        failed_skills = []
         
         print("Starting to scrape all skills data using corrected skill table URLs...")
         
@@ -174,81 +176,102 @@ class DeadmanScraper:
                 time.sleep(0.5)
             
             all_data[skill] = skill_data
-            print(f"  {skill}: {len(skill_data)} players")
+            
+            if len(skill_data) > 0:
+                successful_skills += 1
+                print(f"  {skill}: {len(skill_data)} players")
+            else:
+                failed_skills.append(skill)
+                print(f"  {skill}: 0 players (FAILED)")
+            
             time.sleep(1)  # Be respectful to the server
         
-        print(f"Scraping completed. Total skills: {len(all_data)}")
+        print(f"Scraping completed. Successful skills: {successful_skills}/{len(self.skills)}")
+        if failed_skills:
+            print(f"Failed skills: {', '.join(failed_skills)}")
+        
+        # Return data even if some skills failed, as long as we have some data
         return all_data
 
     def scrape_skill_page_alternative(self, skill: str, page: int = 1) -> List[Dict]:
-        """Alternative method: Scrape using the correct skill table URLs"""
+        """Alternative method: Scrape using the correct skill table URLs with retry logic"""
         table_id = self.get_skill_table_id(skill)
         url = f"{self.base_url}/overall?table={table_id}&page={page}"
         
-        try:
-            response = self.session.get(url, timeout=10)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            players = []
-            rows = soup.find_all('tr')
-            
-            for row in rows:
-                cells = row.find_all('td')
-                if len(cells) >= 3:
-                    try:
-                        rank_text = cells[0].get_text(strip=True)
-                        name_cell = cells[1]
-                        level_text = cells[2].get_text(strip=True) if len(cells) > 2 else "1"
-                        xp_text = cells[3].get_text(strip=True) if len(cells) > 3 else "0"
-                        
-                        # Extract rank
-                        rank_match = re.search(r'\d+', rank_text)
-                        if not rank_match:
-                            continue
-                        rank = int(rank_match.group())
-                        
-                        # Extract player name
-                        name_link = name_cell.find('a')
-                        if name_link:
-                            name = name_link.get_text(strip=True)
-                        else:
-                            name = name_cell.get_text(strip=True)
-                        
-                        # Fix character encoding issues
-                        name = name.replace('Ā', ' ').replace('ā', ' ').replace('\u0100', ' ').replace('\u0101', ' ').strip()
-                        name = ''.join(c if ord(c) < 128 else ' ' for c in name)
-                        name = ' '.join(name.split())
-                        
-                        # Skip if name is empty or contains headers
-                        if not name or 'Rank' in name or 'Name' in name:
-                            continue
+        # Retry logic for connection issues
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(url, timeout=15)
+                response.raise_for_status()
+                
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                players = []
+                rows = soup.find_all('tr')
+                
+                for row in rows:
+                    cells = row.find_all('td')
+                    if len(cells) >= 3:
+                        try:
+                            rank_text = cells[0].get_text(strip=True)
+                            name_cell = cells[1]
+                            level_text = cells[2].get_text(strip=True) if len(cells) > 2 else "1"
+                            xp_text = cells[3].get_text(strip=True) if len(cells) > 3 else "0"
                             
-                        # Skip referees
-                        if name.startswith('Ref'):
+                            # Extract rank
+                            rank_match = re.search(r'\d+', rank_text)
+                            if not rank_match:
+                                continue
+                            rank = int(rank_match.group())
+                            
+                            # Extract player name
+                            name_link = name_cell.find('a')
+                            if name_link:
+                                name = name_link.get_text(strip=True)
+                            else:
+                                name = name_cell.get_text(strip=True)
+                            
+                            # Fix character encoding issues
+                            name = name.replace('Ā', ' ').replace('ā', ' ').replace('\u0100', ' ').replace('\u0101', ' ').strip()
+                            name = ''.join(c if ord(c) < 128 else ' ' for c in name)
+                            name = ' '.join(name.split())
+                            
+                            # Skip if name is empty or contains headers
+                            if not name or 'Rank' in name or 'Name' in name:
+                                continue
+                                
+                            # Skip referees
+                            if name.startswith('Ref'):
+                                continue
+                            
+                            # Clean and convert level and XP
+                            level = int(re.sub(r'[^\d]', '', level_text)) if level_text else 1
+                            xp = int(re.sub(r'[^\d]', '', xp_text)) if xp_text else 0
+                            
+                            players.append({
+                                'rank': rank,
+                                'name': name,
+                                'level': level,
+                                'xp': xp,
+                                'skill': skill
+                            })
+                            
+                        except (ValueError, AttributeError):
                             continue
-                        
-                        # Clean and convert level and XP
-                        level = int(re.sub(r'[^\d]', '', level_text)) if level_text else 1
-                        xp = int(re.sub(r'[^\d]', '', xp_text)) if xp_text else 0
-                        
-                        players.append({
-                            'rank': rank,
-                            'name': name,
-                            'level': level,
-                            'xp': xp,
-                            'skill': skill
-                        })
-                        
-                    except (ValueError, AttributeError):
-                        continue
-            
-            return players
-            
-        except requests.RequestException as e:
-            print(f"Error scraping {skill} page {page}: {e}")
-            return []
+                
+                # If we got here successfully, return the players
+                return players
+                
+            except requests.RequestException as e:
+                print(f"Error scraping {skill} page {page} (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    print(f"Failed to scrape {skill} page {page} after {max_retries} attempts")
+                    return []
+        
+        return []
 
     def scrape_all_data_alternative(self) -> Dict:
         """Alternative method: Scrape using skill table approach with correct URLs"""

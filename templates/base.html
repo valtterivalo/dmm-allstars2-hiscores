@@ -305,13 +305,7 @@
                     </li>
                 </ul>
                 
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <button class="btn btn-outline-warning btn-sm" onclick="refreshData()">
-                            <i class="fas fa-sync-alt"></i> Refresh
-                        </button>
-                    </li>
-                </ul>
+
             </div>
         </div>
     </nav>
@@ -325,15 +319,22 @@
     <footer class="footer">
         <div class="container">
             <div class="row">
-                <div class="col-md-8 text-center text-md-start">
+                <div class="col-md-6 text-center text-md-start">
                     <p class="mb-0">
                         <i class="fas fa-clock"></i> 
                         Last updated: <span id="lastUpdate">Loading...</span>
                     </p>
                 </div>
-                <div class="col-md-4 text-center text-md-end">
+                <div class="col-md-3 text-center">
                     <p class="mb-0 update-info">
                         Updates every 15 minutes
+                    </p>
+                </div>
+                <div class="col-md-3 text-center text-md-end">
+                    <p class="mb-0 update-info">
+                        <a href="/api/database/stats" target="_blank" style="color: #cccccc; text-decoration: none;">
+                            <i class="fas fa-database"></i> DB Stats
+                        </a>
                     </p>
                 </div>
             </div>
@@ -386,19 +387,7 @@
             `;
         }
         
-        function refreshData() {
-            fetch('/api/refresh')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        location.reload();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error refreshing data:', error);
-                    alert('Error refreshing data. Please try again.');
-                });
-        }
+
         
         function updateLastUpdateTime() {
             if (lastUpdateTime) {

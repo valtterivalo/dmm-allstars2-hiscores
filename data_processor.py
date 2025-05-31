@@ -30,6 +30,19 @@ class DataProcessor:
 
     def process_data(self, raw_data: Dict) -> Dict:
         """Process raw scraped data into organized team statistics"""
+        # Validate input data
+        if not raw_data:
+            print("Warning: No raw data provided to process")
+            return {}
+        
+        # Check if we have at least some skill data
+        valid_skills = [skill for skill, data in raw_data.items() if data and len(data) > 0]
+        if not valid_skills:
+            print("Warning: No valid skill data found in raw data")
+            return {}
+        
+        print(f"Processing data for {len(valid_skills)} skills with data: {', '.join(valid_skills)}")
+        
         processed_data = {
             'teams': {},
             'leaderboards': {},
@@ -52,6 +65,7 @@ class DataProcessor:
         # Process each skill
         for skill, players_data in raw_data.items():
             if not players_data:
+                print(f"Skipping {skill} - no data")
                 continue
                 
             # Initialize leaderboard for this skill
@@ -126,11 +140,17 @@ class DataProcessor:
                     team_data['totals'][skill] = {'xp': 0, 'players': 0}
                     team_data['best_players'][skill] = None
         
-        # Calculate team rankings based on total XP
-        self._calculate_team_rankings(processed_data)
-        
-        # Calculate overall statistics
-        self._calculate_overall_stats(processed_data)
+        # Only proceed with rankings and stats if we have valid team data
+        if any(team_data['players'] for team_data in processed_data['teams'].values()):
+            # Calculate team rankings based on total XP
+            self._calculate_team_rankings(processed_data)
+            
+            # Calculate overall statistics
+            self._calculate_overall_stats(processed_data)
+            
+            print(f"Data processing completed successfully for {len(processed_data['teams'])} teams")
+        else:
+            print("Warning: No valid team data found after processing")
         
         return processed_data
 
@@ -159,11 +179,19 @@ class DataProcessor:
             'team_standings': []
         }
         
+        # Determine which skill to use for overall stats
+        # Prefer 'overall' but fallback to 'attack' if overall is missing/incomplete
+        stats_skill = 'overall'
+        if not data['leaderboards'].get('overall') or len(data['leaderboards']['overall']) < 5:
+            if data['leaderboards'].get('attack') and len(data['leaderboards']['attack']) > 0:
+                stats_skill = 'attack'
+                print(f"Using '{stats_skill}' skill for overall stats (overall skill data insufficient)")
+        
         # Count total players
         for team_data in data['teams'].values():
-            # Use overall skill to count unique players
-            overall_players = team_data['totals'].get('overall', {}).get('players', 0)
-            overall_stats['total_players'] += overall_players
+            # Use the determined skill to count unique players
+            skill_players = team_data['totals'].get(stats_skill, {}).get('players', 0)
+            overall_stats['total_players'] += skill_players
         
         # Find skill leaders (highest XP in each skill across all teams)
         for skill in self.skills:
@@ -172,17 +200,17 @@ class DataProcessor:
                 leader = leaderboard[0]  # Already sorted by XP descending
                 overall_stats['skill_leaders'][skill] = leader
         
-        # Calculate team standings based on overall total XP
+        # Calculate team standings based on the determined skill's total XP
         team_standings = []
         for team_code, team_data in data['teams'].items():
-            total_xp = team_data['totals'].get('overall', {}).get('xp', 0)
-            avg_xp = team_data['averages'].get('overall', {}).get('xp', 0)
+            total_xp = team_data['totals'].get(stats_skill, {}).get('xp', 0)
+            avg_xp = team_data['averages'].get(stats_skill, {}).get('xp', 0)
             team_standings.append({
                 'team': team_code,
                 'name': team_data['name'],
                 'total_xp': total_xp,
                 'avg_xp': avg_xp,
-                'players': team_data['totals'].get('overall', {}).get('players', 0)
+                'players': team_data['totals'].get(stats_skill, {}).get('players', 0)
             })
         
         team_standings.sort(key=lambda x: x['total_xp'], reverse=True)
@@ -192,6 +220,7 @@ class DataProcessor:
             team['rank'] = rank
         
         overall_stats['team_standings'] = team_standings
+        overall_stats['stats_skill_used'] = stats_skill  # Track which skill was used
         data['overall_stats'] = overall_stats
 
     def compare_teams(self, teams_data: Dict, team1: str, team2: str) -> Dict:
