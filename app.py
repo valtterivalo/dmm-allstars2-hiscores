@@ -159,14 +159,25 @@ def api_leaderboards():
 @app.route('/api/comparison')
 def api_comparison():
     """API endpoint for team comparison data"""
-    team1 = request.args.get('team1', '').upper()
-    team2 = request.args.get('team2', '').upper()
-    
-    with data_lock:
-        teams = latest_data.get('teams', {})
-    comparison_data = data_processor.compare_teams(teams, team1, team2)
-    
-    return jsonify(comparison_data)
+    try:
+        team1 = request.args.get('team1', '').upper()
+        team2 = request.args.get('team2', '').upper()
+        
+        if not team1 or not team2:
+            return jsonify({'error': 'Both team1 and team2 parameters are required'}), 400
+        
+        with data_lock:
+            teams = latest_data.get('teams', {})
+        
+        if not teams:
+            return jsonify({'error': 'No team data available'}), 503
+            
+        comparison_data = data_processor.compare_teams(teams, team1, team2)
+        
+        return jsonify(comparison_data)
+    except Exception as e:
+        print(f"Error in team comparison: {e}")
+        return jsonify({'error': f'Error loading comparison data: {str(e)}'}), 500
 
 @app.route('/api/history/player/<player_name>')
 def api_player_history(player_name):
