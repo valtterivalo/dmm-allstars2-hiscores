@@ -72,7 +72,7 @@
                 <div class="card">
                     <div class="card-header">
                         <h4 class="mb-0">
-                            <i class="fas fa-chart-radar"></i> Skill Comparison (XP)
+                            <i class="fas fa-chart-radar"></i> Skill Comparison (XP Display, Level Priority)
                         </h4>
                     </div>
                     <div class="card-body">
@@ -88,7 +88,7 @@
                 <div class="card">
                     <div class="card-header">
                         <h4 class="mb-0">
-                            <i class="fas fa-table"></i> Detailed Skill Comparison
+                            <i class="fas fa-table"></i> Detailed Skill Comparison (Level Priority)
                         </h4>
                     </div>
                     <div class="card-body">
@@ -303,8 +303,23 @@
         
         skills.forEach(skill => {
             const skillData = players.map(player => comparisonData[player][skill] || {});
-            const maxXP = Math.max(...skillData.map(d => d.xp || 0));
-            const leader = players.find(player => (comparisonData[player][skill]?.xp || 0) === maxXP);
+            
+            // Find leader by level first, then XP as tiebreaker
+            let leader = null;
+            let maxLevel = -1;
+            let maxXP = -1;
+            
+            players.forEach(player => {
+                const data = comparisonData[player][skill] || {};
+                const level = data.level || 0;
+                const xp = data.xp || 0;
+                
+                if (level > maxLevel || (level === maxLevel && xp > maxXP)) {
+                    maxLevel = level;
+                    maxXP = xp;
+                    leader = player;
+                }
+            });
             
             html += `
                 <tr>
@@ -313,12 +328,12 @@
             
             players.forEach((player, index) => {
                 const data = skillData[index];
-                const isLeader = (data.xp || 0) === maxXP && maxXP > 0;
+                const isLeader = player === leader;
                 const cellClass = isLeader ? 'table-success' : '';
                 
                 html += `
                     <td class="${cellClass}">
-                        Level ${data.level || 0}<br>
+                        <strong>Level ${data.level || 0}</strong><br>
                         ${formatXP(data.xp || 0)}<br>
                         <small>Rank #${data.rank || 'N/A'}</small>
                     </td>

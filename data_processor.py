@@ -88,8 +88,8 @@ class DataProcessor:
                         'rank': player['rank']
                     })
             
-            # Sort leaderboard by XP (descending)
-            processed_data['leaderboards'][skill].sort(key=lambda x: x['xp'], reverse=True)
+            # Sort leaderboard by level first, then XP (both descending)
+            processed_data['leaderboards'][skill].sort(key=lambda x: (x['level'], x['xp']), reverse=True)
             
             # Calculate team statistics for this skill
             for team_code, team_data in processed_data['teams'].items():
@@ -115,6 +115,7 @@ class DataProcessor:
                     avg_level = np.mean([p['level'] for p in players])
                     avg_xp = np.mean([p['xp'] for p in players])
                     total_xp = sum([p['xp'] for p in players])
+                    total_level = sum([p['level'] for p in players])
                     
                     team_data['averages'][skill] = {
                         'level': round(avg_level, 2),
@@ -122,12 +123,13 @@ class DataProcessor:
                     }
                     
                     team_data['totals'][skill] = {
+                        'level': total_level,
                         'xp': total_xp,
                         'players': len(players)
                     }
                     
-                    # Find best player in team for this skill
-                    best_player = max(players, key=lambda x: x['xp'])
+                    # Find best player in team for this skill (prioritize level, then XP)
+                    best_player = max(players, key=lambda x: (x['level'], x['xp']))
                     team_data['best_players'][skill] = {
                         'name': best_player['name'],
                         'level': best_player['level'],
@@ -137,7 +139,7 @@ class DataProcessor:
                 else:
                     # No players found for this team in this skill
                     team_data['averages'][skill] = {'level': 0, 'xp': 0}
-                    team_data['totals'][skill] = {'xp': 0, 'players': 0}
+                    team_data['totals'][skill] = {'level': 0, 'xp': 0, 'players': 0}
                     team_data['best_players'][skill] = None
         
         # Only proceed with rankings and stats if we have valid team data
@@ -160,14 +162,15 @@ class DataProcessor:
             # Get team totals for this skill
             team_totals = []
             for team_code, team_data in data['teams'].items():
+                total_level = team_data['totals'].get(skill, {}).get('level', 0)
                 total_xp = team_data['totals'].get(skill, {}).get('xp', 0)
-                team_totals.append((team_code, total_xp))
+                team_totals.append((team_code, total_level, total_xp))
             
-            # Sort by total XP (descending)
-            team_totals.sort(key=lambda x: x[1], reverse=True)
+            # Sort by total level first, then total XP (both descending)
+            team_totals.sort(key=lambda x: (x[1], x[2]), reverse=True)
             
             # Assign rankings
-            for rank, (team_code, total_xp) in enumerate(team_totals, 1):
+            for rank, (team_code, total_level, total_xp) in enumerate(team_totals, 1):
                 data['teams'][team_code]['rankings'][skill] = rank
 
     def _calculate_overall_stats(self, data: Dict):
@@ -193,27 +196,31 @@ class DataProcessor:
             skill_players = team_data['totals'].get(stats_skill, {}).get('players', 0)
             overall_stats['total_players'] += skill_players
         
-        # Find skill leaders (highest XP in each skill across all teams)
+        # Find skill leaders (highest level first, then XP in each skill across all teams)
         for skill in self.skills:
             leaderboard = data['leaderboards'].get(skill, [])
             if leaderboard:
-                leader = leaderboard[0]  # Already sorted by XP descending
+                leader = leaderboard[0]  # Already sorted by level then XP descending
                 overall_stats['skill_leaders'][skill] = leader
         
-        # Calculate team standings based on the determined skill's total XP
+        # Calculate team standings based on the determined skill's total level first, then total XP
         team_standings = []
         for team_code, team_data in data['teams'].items():
+            total_level = team_data['totals'].get(stats_skill, {}).get('level', 0)
             total_xp = team_data['totals'].get(stats_skill, {}).get('xp', 0)
+            avg_level = team_data['averages'].get(stats_skill, {}).get('level', 0)
             avg_xp = team_data['averages'].get(stats_skill, {}).get('xp', 0)
             team_standings.append({
                 'team': team_code,
                 'name': team_data['name'],
+                'total_level': total_level,
                 'total_xp': total_xp,
+                'avg_level': avg_level,
                 'avg_xp': avg_xp,
                 'players': team_data['totals'].get(stats_skill, {}).get('players', 0)
             })
         
-        team_standings.sort(key=lambda x: x['total_xp'], reverse=True)
+        team_standings.sort(key=lambda x: (x['total_level'], x['total_xp']), reverse=True)
         
         # Add rankings
         for rank, team in enumerate(team_standings, 1):
@@ -251,27 +258,43 @@ class DataProcessor:
         team2_wins = 0
         
         for skill in self.skills:
-            team1_avg = team1_data['averages'].get(skill, {}).get('xp', 0)
-            team2_avg = team2_data['averages'].get(skill, {}).get('xp', 0)
+            team1_avg_level = team1_data['averages'].get(skill, {}).get('level', 0)
+            team2_avg_level = team2_data['averages'].get(skill, {}).get('level', 0)
+            team1_avg_xp = team1_data['averages'].get(skill, {}).get('xp', 0)
+            team2_avg_xp = team2_data['averages'].get(skill, {}).get('xp', 0)
             
-            team1_total = team1_data['totals'].get(skill, {}).get('xp', 0)
-            team2_total = team2_data['totals'].get(skill, {}).get('xp', 0)
+            team1_total_level = team1_data['totals'].get(skill, {}).get('level', 0)
+            team2_total_level = team2_data['totals'].get(skill, {}).get('level', 0)
+            team1_total_xp = team1_data['totals'].get(skill, {}).get('xp', 0)
+            team2_total_xp = team2_data['totals'].get(skill, {}).get('xp', 0)
             
             winner = None
-            if team1_total > team2_total:
+            # Compare by total level first, then total XP
+            if team1_total_level > team2_total_level:
                 winner = team1
                 team1_wins += 1
-            elif team2_total > team1_total:
+            elif team2_total_level > team1_total_level:
+                winner = team2
+                team2_wins += 1
+            elif team1_total_xp > team2_total_xp:
+                winner = team1
+                team1_wins += 1
+            elif team2_total_xp > team1_total_xp:
                 winner = team2
                 team2_wins += 1
             
             comparison['skill_comparison'][skill] = {
-                'team1_avg': team1_avg,
-                'team2_avg': team2_avg,
-                'team1_total': team1_total,
-                'team2_total': team2_total,
+                'team1_avg_level': team1_avg_level,
+                'team2_avg_level': team2_avg_level,
+                'team1_avg_xp': team1_avg_xp,
+                'team2_avg_xp': team2_avg_xp,
+                'team1_total_level': team1_total_level,
+                'team2_total_level': team2_total_level,
+                'team1_total_xp': team1_total_xp,
+                'team2_total_xp': team2_total_xp,
                 'winner': winner,
-                'difference': abs(team1_total - team2_total)
+                'level_difference': abs(team1_total_level - team2_total_level),
+                'xp_difference': abs(team1_total_xp - team2_total_xp)
             }
         
         # Summary

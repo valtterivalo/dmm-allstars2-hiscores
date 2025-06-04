@@ -145,8 +145,8 @@
                                     <small>Players</small>
                                 </div>
                                 <div class="col-4">
-                                    <h5>${overallAvg.level || 0}</h5>
-                                    <small>Avg Total</small>
+                                    <h5>${overallStats.level || 0}</h5>
+                                    <small>Total Level</small>
                                 </div>
                                 <div class="col-4">
                                     <h5>${formatNumber(overallStats.xp || 0)}</h5>
@@ -254,8 +254,8 @@
                             <small>Total Players</small>
                         </div>
                         <div class="col-md-3 text-center">
-                            <h4>${team.averages.overall?.level || 0}</h4>
-                            <small>Average Total</small>
+                            <h4>${team.totals.overall?.level || 0}</h4>
+                            <small>Total Level</small>
                         </div>
                         <div class="col-md-3 text-center">
                             <h4>${formatXP(team.totals.overall?.xp || 0)}</h4>
@@ -279,7 +279,7 @@
                                 <tr>
                                     <th>Skill</th>
                                     <th>Avg Level</th>
-                                    <th>Avg XP</th>
+                                    <th>Total Level</th>
                                     <th>Total XP</th>
                                     <th>Best Player</th>
                                     <th>Team Rank</th>
@@ -300,7 +300,7 @@
                 <tr>
                     <td class="text-capitalize"><strong>${skill}</strong></td>
                     <td>${avg.level || 0}</td>
-                    <td>${formatXP(avg.xp || 0)}</td>
+                    <td><strong>${total.level || 0}</strong></td>
                     <td>${formatXP(total.xp || 0)}</td>
                     <td>${best ? `${best.name} (${best.level})` : '-'}</td>
                     <td><span class="badge bg-warning">#${rank}</span></td>
